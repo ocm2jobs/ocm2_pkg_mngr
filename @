@@ -1,0 +1,94 @@
+#!/bin/bash 
+
+yellow="\e[33m"
+# set -x 
+# grep -E "^(\w+/[a-zA-Z-_\.]+ [[:digit:]]+)" | \
+#   --preview='pacman -Qi {} 2>/dev/null' \
+#   --bind down:down+down,up:up+up \
+# grep -A1 -E "^([a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-\+\.]+)" | \
+
+case "$1" in
+  -h|--help) 
+    echo -en "\tUsage:\n\n\t$0\t[ -h | --help - Show this ]\n\t\t\t\t[ search strings ]\n\n" 
+    echo -en "\tDepends On:\t\t- $(dirname $0)/ocm2__pkg_name.sh [args]\n\t\t\t\t- fzf\n\t\t\t\t- sed\n\t\t\t\t- awk\n\t\t\t\t- pacman\n\n"
+    exit
+  ;;
+esac
+
+ARGS="$*"
+
+[ -n "$ARGS" ] && PACKAGE=$(pacman -Ss " " | \
+  awk 'NR%2==1{pkg=$0;next}{printf "%s\n%s\0", pkg, $0}' | \
+  fzf --reverse --read0 --print0 \
+    --header-first \
+    --header="                  ** Package Manager **   " \
+    --border \
+    --preview='~/bin/ocm2__pkg_name.sh {}' \
+    --preview-window=right:60% --height=100% \
+    --prompt="📦 Search Package > " \
+    --query="$ARGS" \
+)
+
+[ -z "$ARGS" ] && PACKAGE=$(pacman -Ss " " | \
+  awk 'NR%2==1{pkg=$0;next}{printf "%s\n%s\0", pkg, $0}' | \
+  fzf --reverse --read0 --print0 \
+    --header-first \
+    --header="                  ** Package Manager **   " \
+    --border \
+    --preview='~/bin/ocm2__pkg_name.sh {}' \
+    --preview-window=right:60% --height=100% \
+    --prompt="📦 Search Package > " \
+)
+
+if [ -z "$PACKAGE" ]; then
+  exit 
+fi
+
+# PKG=$(echo $PACKAGE | cut -d' ' -f1)
+PKG=$(echo $PACKAGE | sed -e 's/\w*\///' | cut -d' ' -f1)
+for i in {1..60}
+  {
+    printf %c '+'
+  }
+echo -en "\n For Package:: ${PACKAGE%%\[installed]} :: What do you want to do? \n"
+for i in {1..60}
+  {
+    printf %c '+'
+  }
+echo " "
+
+if [[ "$PACKAGE" == *"installed"* ]]; then
+  read -p "Do you want to uninstall (y/N) -> " yes
+  if [ "${yes~}" == "Y" ]; then
+    echo "Uninstalling [ $PKG ] package..."
+    sudo pacman -Rcs $PKG
+    clear
+    exec ocm2
+  fi
+  read -p "Do you want to list installed files (y/N) -> " yes
+  if [ "${yes~}" == "Y" ]; then
+    # PKG=$(echo $PACKAGE | sed -e 's/\w*\///' | cut -d' ' -f1)
+    # echo "Listing files of [ $PKG ] package..."
+    sudo pacman -Ql $PKG | \
+    fzf --reverse \
+        --border \
+        --preview='~/bin/ocm2__pkg_list.sh {}' \
+        --preview-window=right:60% --height=100%
+    # echo -en "\nPress any key to continue... "
+    # read yes
+    clear
+    exec ocm2
+  fi
+else
+  PKG=$(echo $PACKAGE | cut -d' ' -f1)
+  sudo pacman -Ss $PKG | grep -A1 "$PKG"
+  read -p "Do you want to install (y/N) -> " yes
+  if [ "${yes~}" == "Y" ]; then
+    # PKG=$(echo $PACKAGE | sed -e 's/\w*\///' | cut -d' ' -f1)
+    # echo "Installing [ $PKG ]"
+    sudo pacman -Sy $PKG
+  fi
+fi 
+
+clear
+exec ocm2
